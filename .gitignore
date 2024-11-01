@@ -1,0 +1,6 @@
+/vlense/__pycache__/
+/vlense/*/__pycache__/
+/*.pdf
+/*.png
+.venv
+something.py

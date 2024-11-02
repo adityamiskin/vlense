@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vlense"
+version = "0.1.0"
+description = "A Python package to extract text from images and PDFs using Vision Language Model (VLM)."
+readme = "README.md"
+authors = [
+    {name = "Aditya Miskin", email = "adityamiskin98@gmail.com"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "aiofiles==24.1.0",
+    "aioshutil==1.5",
+    "litellm==1.51.2",
+    "pdf2image==1.17.0",
+    "pydantic==2.9.2",
+    "asyncio==3.4.3",
+]
+keywords = [
+    "vision-language-model",
+    "ocr",
+    "text-extraction",
+    "pdf-processing",
+    "image-processing"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/adityamiskin/vlense"
+Repository = "https://github.com/adityamiskin/vlense.git"
+"Bug Tracker" = "https://github.com/adityamiskin/vlense/issues"
+
+[tool.setuptools]
+packages = ["vlense"]

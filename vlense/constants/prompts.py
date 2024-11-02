@@ -4,7 +4,7 @@ class Prompts:
     DEFAULT_SYSTEM_PROMPT_MARKDOWN = """
     Convert the following PDF page to markdown.
     Return only the markdown with no explanation text.
-    Do not exclude any content from the page.
+    Do not exclude any content from the page. Give the markdown in ```markdown``` format.
     """
 
     DEFAULT_SYSTEM_PROMPT_HTML = """

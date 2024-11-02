@@ -5,6 +5,10 @@
 .venv
 something.py
 
+/output
+/temp_images
+/data
+
 .pypirc
 
 

@@ -1,7 +1,7 @@
 class Patterns:
     """Regex patterns for markdown and code blocks"""
 
-    MATCH_MARKDOWN_BLOCKS = r"```[a-z]*\n([\s\S]*?)\n```"
+    MATCH_MARKDOWN_BLOCKS = r"```markdown[a-z]*\n([\s\S]*?)\n```"
 
     MATCH_CODE_BLOCKS = r"```(?:[a-z]*)\n([\s\S]*?)\n```"
 

@@ -1,4 +1,3 @@
-````markdown
 # Vlense
 
 A Python package to extract text from images and PDFs using Vision Language Models (VLM).
@@ -16,7 +15,6 @@ A Python package to extract text from images and PDFs using Vision Language Mode
 ```bash
 pip install vlense
 ```
-````
 
 ## Usage
 
@@ -56,64 +54,25 @@ Performs OCR on the provided files.
 
 **Parameters:**
 
--
+- file_path : (Union[str, List[str]]): Path or list of paths to PDF/image files.
 
-file_path
+- model : (str, optional): Model name for generating completions. Defaults to `"gemini-1.5-flash"`.
 
-(Union[str, List[str]]): Path or list of paths to PDF/image files.
+- output_dir : (Optional[str], optional): Directory to save output. Defaults to `None`.
 
--
+- temp_dir : (Optional[str], optional): Directory for temporary files. Defaults to system temp.
 
-model
+- batch_size : (int, optional): Number of concurrent processes. Defaults to `3`.
 
-(str, optional): Model name for generating completions. Defaults to `"gemini-1.5-flash"`.
+- format : (str, optional): Output format (`'markdown'`, `'html'`, `'json'`). Defaults to `'markdown'`.
 
--
+- json_schema : (Optional[Type[BaseModel]], optional): Pydantic model for JSON output. Required if format is `'json'`.
 
-output_dir
-
-(Optional[str], optional): Directory to save output. Defaults to `None`.
-
--
-
-temp_dir
-
-(Optional[str], optional): Directory for temporary files. Defaults to system temp.
-
--
-
-batch_size
-
-(int, optional): Number of concurrent processes. Defaults to `3`.
-
--
-
-format
-
-(str, optional): Output format (`'markdown'`, `'html'`, `'json'`). Defaults to `'markdown'`.
-
--
-
-json_schema
-
-(Optional[Type[BaseModel]], optional): Pydantic model for JSON output. Required if
-
-format
-
-is `'json'`.
-
--
-
-clean_temp_files
-
-(Optional[bool], optional): Cleanup temporary files after processing. Defaults to `True`.
+- clean_temp_files : (Optional[bool], optional): Cleanup temporary files after processing. Defaults to `True`.
 
 **Returns:**
 
--
-
-Dict[str, VlenseResponse] : Generated content.
-
+- Dict[str, VlenseResponse] : Generated content.
 
 ## Contributing
 
@@ -128,7 +87,3 @@ This project is licensed under the MIT License. See the LICENSE file for details
 Author: Aditya Miskin  
 Email: [adityamiskin98@gmail.com](mailto:adityamiskin98@gmail.com)  
 Repository: [https://github.com/adityamiskin/vlense](https://github.com/adityamiskin/vlense)
-
-```
-
-```

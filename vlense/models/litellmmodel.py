@@ -18,7 +18,7 @@ class LiteLLMModel:
         self.model = model
         self.format = format
         self.json_schema = json_schema
-        self._system_prompt = Prompts.DEFAULT_SYSTEM_PROMPT_MARKDOWN
+        self.system_prompt = ""
 
         self.validate_model()
         self.validate_environment()

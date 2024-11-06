@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vlense"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Python package to extract text from images and PDFs using Vision Language Model (VLM)."
 readme = "README.md"
 authors = [

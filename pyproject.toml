@@ -46,4 +46,7 @@ Repository = "https://github.com/adityamiskin/vlense.git"
 "Bug Tracker" = "https://github.com/adityamiskin/vlense/issues"
 
 [tool.setuptools]
-packages = ["vlense"]
+packages = { find = ["vlense"] }
+
+[tool.setuptools.find]
+include = ["vlense", "vlense.*"]

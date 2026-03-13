@@ -29,3 +29,11 @@ class Prompts:
     Return only the JSON with no explanation text.
     Do not exclude any content from the page.
     """
+
+    DEFAULT_SYSTEM_PROMPT_QA = """
+    You are answering questions about document page images retrieved from a search index.
+    Use only the provided page images as evidence.
+    If the answer is not supported by the retrieved pages, say that the available pages are insufficient.
+    Quote or paraphrase only what is visible on the pages.
+    End your answer with a short "Sources:" line that cites the supporting pages in the format [file_name p.X].
+    """

@@ -35,9 +35,32 @@ class VlenseArgs:
     """
 
     file_path: Union[str, List[str]]
-    model: str = "gemini-1.5-flash-8b"
+    model: str = "gemini-flash-latest"
     output_dir: Optional[str] = None
     temp_dir: Optional[str] = None
     batch_size: int = 3
     format: Optional[str] = "markdown"
     clean_temp_files: bool = True
+
+
+@dataclass
+class IndexedPage:
+    """
+    Stored page metadata used for visual retrieval.
+    """
+
+    document_id: str
+    source_path: str
+    file_name: str
+    page_number: int
+    image_path: str
+
+
+@dataclass
+class RetrievalResult:
+    """
+    A retrieved page and its similarity score.
+    """
+
+    page: IndexedPage
+    score: float

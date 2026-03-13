@@ -1,9 +1,9 @@
 import litellm
 from ..constants import Prompts
-from ..lib import encode_image_to_base64
-from .types import CompletionResponse
+from ..lib import encode_image_to_base64, get_image_mime_type
+from .types import AnswerResponse, CompletionResponse
 from ..errors import ModelAccessError, NotAVisionModel, MissingEnvironmentVariables
-from typing import Optional, Type, Any
+from typing import List, Optional, Type, Any
 from pydantic import BaseModel
 import json
 
@@ -38,8 +38,10 @@ class LiteLLMModel:
 
     def validate_access(self) -> None:
         """Validates access to the model -> if environment variables are set correctly with correct values."""
-        if not litellm.check_valid_key(model=self.model, api_key=None):
-            raise ModelAccessError(extra_info={"model": self.model})
+        # LiteLLM's key preflight can return false negatives for newer models.
+        # Environment validation above is enough; let the real API call surface
+        # any authorization or model-access errors.
+        return None
 
     @property
     def system_prompt(self) -> str:
@@ -122,10 +124,91 @@ class LiteLLMModel:
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                        "image_url": {
+                            "url": (
+                                f"data:{get_image_mime_type(image_path)};"
+                                f"base64,{base64_image}"
+                            )
+                        },
                     },
                 ],
             }
         )
 
         return messages
+
+    async def answer_question(
+        self,
+        question: str,
+        image_paths: List[str],
+        page_references: List[str],
+    ) -> AnswerResponse:
+        """
+        Answer a question using a set of retrieved page images.
+        """
+        messages = await self.prepare_question_messages(
+            question=question,
+            image_paths=image_paths,
+            page_references=page_references,
+        )
+
+        response = await litellm.acompletion(model=self.model, messages=messages)
+
+        return AnswerResponse(
+            content=response["choices"][0]["message"]["content"],
+            input_tokens=response["usage"]["prompt_tokens"],
+            output_tokens=response["usage"]["completion_tokens"],
+        )
+
+    async def prepare_question_messages(
+        self,
+        question: str,
+        image_paths: List[str],
+        page_references: List[str],
+    ) -> list[dict]:
+        """
+        Build a multimodal prompt that includes retrieved page images and source labels.
+        """
+        if not image_paths:
+            raise ValueError("At least one image path is required to answer a question.")
+
+        user_content = [
+            {
+                "type": "text",
+                "text": (
+                    "Question:\n"
+                    f"{question}\n\n"
+                    "Retrieved pages:\n"
+                    + "\n".join(f"- {reference}" for reference in page_references)
+                ),
+            }
+        ]
+
+        for image_path in image_paths:
+            if image_path.startswith("data:"):
+                image_url = image_path
+            else:
+                base64_image = await encode_image_to_base64(image_path)
+                image_url = (
+                    f"data:{get_image_mime_type(image_path)};"
+                    f"base64,{base64_image}"
+                )
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image_url
+                    },
+                }
+            )
+
+        return [
+            {
+                "role": "system",
+                "content": Prompts.DEFAULT_SYSTEM_PROMPT_QA,
+            },
+            {
+                "role": "user",
+                "content": user_content,
+            },
+        ]

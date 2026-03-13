@@ -9,11 +9,13 @@ A Python package to extract text from images and PDFs using Vision Language Mode
 - Easy integration with Vision Language Models
 - Asynchronous processing with batch support
 - Custom JSON schema for structured output
+- Build page-image embedding collections for multimodal RAG
+- Ask grounded questions over indexed PDFs and images
 
 ## Installation
 
 ```bash
-pip install vlense
+uv sync
 ```
 
 ## Usage
@@ -26,7 +28,7 @@ from pydantic import BaseModel
 
 path = ["./images/image1.jpg", "test.pdf"]
 output_dir = "./output"
-model = "gemini/gemini-1.5-flash"
+model = "openai/gpt-5-mini"
 temp_dir = "./temp_images"
 os.environ["GEMINI_API_KEY"] = "YOUR_API_KEY"
 
@@ -46,6 +48,42 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## Multimodal RAG
+
+`Vlense.index()` builds a ColFlor-backed retrieval index for PDFs and images. `Vlense.ask()` searches that index for the most relevant document pages and sends the retrieved page images to the vision model to answer with citations.
+
+```python
+import asyncio
+from vlense import Vlense
+
+
+async def main():
+    vlense = Vlense()
+
+    await vlense.index(
+        data_dir=["./handbook.pdf", "./diagram.png"],
+        collection_name="company-docs",
+        index_dir="./.vlense",
+        retriever_model="ahmed-masry/ColFlor",
+    )
+
+    answer = await vlense.ask(
+        query="What are the eligibility requirements?",
+        collection_name="company-docs",
+        index_dir="./.vlense",
+        model="openai/gpt-5-mini",
+        top_k=3,
+    )
+
+    print(answer)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Retrieval uses `ahmed-masry/ColFlor` by default, which is much smaller than ColQwen2 while staying document-focused for page-image retrieval.
+
 ## API
 
 ### Vlense.ocr()
@@ -56,7 +94,7 @@ Performs OCR on the provided files.
 
 - file_path : (Union[str, List[str]]): Path or list of paths to PDF/image files.
 
-- model : (str, optional): Model name for generating completions. Defaults to `"gemini-1.5-flash"`.
+- model : (str, optional): Model name for generating completions. Defaults to `"gemini-flash-latest"`.
 
 - output_dir : (Optional[str], optional): Directory to save output. Defaults to `None`.
 
@@ -73,6 +111,39 @@ Performs OCR on the provided files.
 **Returns:**
 
 - Dict[str, VlenseResponse] : Generated content.
+
+### Vlense.index()
+
+Indexes one or more PDFs or images into a local ColFlor retrieval collection.
+
+**Parameters:**
+
+- data_dir : (Union[str, List[str]]): File path, list of file paths, or a directory containing supported PDF/image files.
+- collection_name : (str): Name of the collection to create or replace.
+- index_dir : (str, optional): Root directory used to store indexed collections. Defaults to `".vlense"`.
+- retriever_model : (str, optional): ColFlor model name. Defaults to `"ahmed-masry/ColFlor"`.
+- embedding_batch_size : (int, optional): Batch size used while embedding page images. Defaults to `2`.
+- temp_dir : (Optional[str], optional): Temporary directory for rendered PDF pages.
+
+**Returns:**
+
+- str : Path to the collection manifest.
+
+### Vlense.ask()
+
+Answers a question using ColFlor-retrieved page images from a previously indexed collection.
+
+**Parameters:**
+
+- query : (str): User question.
+- collection_name : (str): Indexed collection name.
+- model : (str, optional): Vision model used for grounded answering. Defaults to `"gemini-flash-latest"`.
+- index_dir : (str, optional): Root directory where collections are stored. Defaults to `".vlense"`.
+- top_k : (int, optional): Number of retrieved pages to send to the model. Defaults to `3`.
+
+**Returns:**
+
+- str : Grounded answer with cited pages.
 
 ## Contributing
 

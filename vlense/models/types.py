@@ -4,3 +4,9 @@ class CompletionResponse(BaseModel):
     content: str
     input_tokens: int
     output_tokens: int
+
+
+class AnswerResponse(BaseModel):
+    content: str
+    input_tokens: int
+    output_tokens: int

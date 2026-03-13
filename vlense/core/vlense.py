@@ -1,13 +1,21 @@
 import os
+import asyncio
 import shutil
-import aioshutil
-import aiofiles.os as async_os
 import tempfile
-from typing import Optional, Union, List, Dict, Type, Any
+from pathlib import Path
+from typing import Dict, List, Optional, Type, Union
 
 from .types import VlenseResponse
-from ..lib import process_batch_with_completion
-from ..models import LiteLLMModel
+from ..lib.retrieval import (
+    get_collection_path,
+    load_manifest,
+    save_manifest,
+    resolve_input_files,
+    parse_indexed_pages,
+    materialize_document_pages,
+    rank_pages,
+    get_embeddings_path,
+)
 
 from pydantic import BaseModel  # Import BaseModel for type hinting
 
@@ -23,7 +31,7 @@ class Vlense:
     async def ocr(
         self,
         file_path: Union[str, List[str]],
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-flash-latest",
         output_dir: Optional[str] = None,
         temp_dir: Optional[str] = None,
         batch_size: int = 3,
@@ -38,7 +46,7 @@ class Vlense:
 
         :param file_path: The path or URL to the PDF/image file to process.
         :type file_path: Union[str, List[str]]
-        :param model: The model to use for generating completions, defaults to "gemini-1.5-flash". Note - Refer: https://docs.litellm.ai/docs/providers to pass the correct model name as per provider specifications.
+        :param model: The model to use for generating completions, defaults to "gemini-flash-latest". Note - Refer: https://docs.litellm.ai/docs/providers to pass the correct model name as per provider specifications.
         :type model: str, optional
         :param output_dir: The directory to save the output, defaults to None.
         :type output_dir: Optional[str], optional
@@ -70,12 +78,15 @@ class Vlense:
             file_paths = file_path
 
         if output_dir:
-            await async_os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(output_dir, exist_ok=True)
 
         if temp_dir:
             if os.path.exists(temp_dir):
-                await aioshutil.rmtree(temp_dir)
-            await async_os.makedirs(temp_dir, exist_ok=True)
+                await asyncio.to_thread(shutil.rmtree, temp_dir)
+            os.makedirs(temp_dir, exist_ok=True)
+
+        from ..lib.pdf import process_batch_with_completion
+        from ..models.litellmmodel import LiteLLMModel
 
         llm_model = LiteLLMModel(model=model, format=format, json_schema=json_schema)
 
@@ -104,38 +115,144 @@ class Vlense:
 
     async def index(
         self,
-        data_dir: str,
+        data_dir: Union[str, List[str]],
         collection_name: str,
+        index_dir: str = ".vlense",
+        retriever_model: str = "ahmed-masry/ColFlor",
+        temp_dir: Optional[str] = None,
+        embedding_batch_size: int = 2,
     ) -> str:
         """
-        Index the provided document for future queries.
-
-        Args:
-            file_path (str): The path to the document to be indexed.
-            model (str): The model to use for indexing the document.
-
-        Returns:
-            str: The index of the document.
+        Index PDFs or images with ColFlor for later retrieval.
         """
-        # Placeholder for future implementation
-        return "This feature will be implemented soon."
+        file_paths = resolve_input_files(data_dir)
+        return await self._index_with_colflor(
+            file_paths=file_paths,
+            collection_name=collection_name,
+            index_dir=index_dir,
+            retriever_model=retriever_model,
+            temp_dir=temp_dir,
+            embedding_batch_size=embedding_batch_size,
+        )
 
     async def ask(
         self,
         query: str,
         collection_name: str,
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-flash-latest",
+        index_dir: str = ".vlense",
+        top_k: int = 3,
     ) -> str:
         """
-        Answer questions based on the provided documents.
-
-        Args:
-            query (str): The question to be answered.
-            context (Union[str, List[str]]): Optional context from documents to base the answer on.
-            model (str): The model to use for generating the answer.
-
-        Returns:
-            str: The answer to the query.
+        Answer a question using ColFlor retrieval over an indexed collection.
         """
-        # Placeholder for future implementation
-        return "This feature will be implemented soon."
+        manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
+        return await self._ask_with_colflor(
+            query=query,
+            collection_name=collection_name,
+            model=model,
+            index_dir=index_dir,
+            top_k=top_k,
+            retriever_model=manifest.get("retriever_model", "ahmed-masry/ColFlor"),
+        )
+
+    async def _index_with_colflor(
+        self,
+        file_paths: List[str],
+        collection_name: str,
+        index_dir: str,
+        retriever_model: str,
+        temp_dir: Optional[str],
+        embedding_batch_size: int,
+    ) -> str:
+        from ..models.colflor import ColFlorRetriever
+
+        collection_path = get_collection_path(index_dir, collection_name)
+        if collection_path.exists():
+            shutil.rmtree(collection_path)
+        pages_root = collection_path / "pages"
+        pages_root.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as temp_dir_:
+            working_temp_dir = temp_dir or temp_dir_
+            if temp_dir:
+                if os.path.exists(temp_dir):
+                    await asyncio.to_thread(shutil.rmtree, temp_dir)
+                os.makedirs(temp_dir, exist_ok=True)
+
+            page_entries = []
+            page_image_paths = []
+            for file_path in file_paths:
+                entries = await materialize_document_pages(
+                    source_path=file_path,
+                    pages_root=pages_root,
+                    temp_directory=working_temp_dir,
+                )
+                page_entries.extend(entries)
+                page_image_paths.extend(entry["image_path"] for entry in entries)
+
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+
+        retriever = ColFlorRetriever(model_name=retriever_model)
+        page_embeddings = retriever.encode_images(
+            page_image_paths,
+            batch_size=embedding_batch_size,
+        )
+        retriever.save_embeddings(
+            page_embeddings,
+            str(get_embeddings_path(index_dir, collection_name)),
+        )
+
+        return save_manifest(
+            index_dir=index_dir,
+            collection_name=collection_name,
+            retriever_model=retriever_model,
+            pages=parse_indexed_pages({"pages": page_entries}),
+        )
+
+    async def _ask_with_colflor(
+        self,
+        query: str,
+        collection_name: str,
+        model: str,
+        index_dir: str,
+        top_k: int,
+        retriever_model: str,
+    ) -> str:
+        from ..models.colflor import ColFlorRetriever
+        from ..models.litellmmodel import LiteLLMModel
+
+        manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
+        pages = parse_indexed_pages(manifest)
+        if not pages:
+            raise ValueError(f"Collection '{collection_name}' does not contain any indexed pages.")
+
+        retriever = ColFlorRetriever(model_name=retriever_model)
+        page_embeddings = retriever.load_embeddings(manifest["embeddings_path"])
+        query_embeddings = retriever.encode_queries([query])
+        scores = retriever.score(
+            query_embeddings=query_embeddings,
+            document_embeddings=page_embeddings,
+        )
+        results = rank_pages(
+            pages=pages,
+            scores=scores,
+            top_k=max(1, min(top_k, len(pages))),
+        )
+        if not results:
+            raise ValueError(f"Collection '{collection_name}' returned no matches for the query.")
+
+        image_paths = []
+        page_references = []
+        for result in results:
+            image_paths.append(result.page.image_path)
+            page_references.append(f"{result.page.file_name} p.{result.page.page_number}")
+
+        llm_model = LiteLLMModel(model=model, format="markdown")
+        answer = await llm_model.answer_question(
+            question=query,
+            image_paths=image_paths,
+            page_references=page_references,
+        )
+        return answer.content

@@ -29,6 +29,7 @@ build/
 env/
 venv/
 ENV/
+.vlense/
 
 # IDE specific files
 .vscode/

@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
 ## Multimodal RAG
 
-`Vlense.index()` builds a ColFlor-backed retrieval index for PDFs and images. `Vlense.ask()` searches that index for the most relevant document pages and sends the retrieved page images to the vision model to answer with citations.
+`Vlense.index()` builds a `colpali-engine` retrieval index for PDFs and images. `Vlense.ask()` searches that index for the most relevant document pages and sends the retrieved page images to the vision model to answer with citations.
 
 ```python
 import asyncio
@@ -64,7 +64,7 @@ async def main():
         data_dir=["./handbook.pdf", "./diagram.png"],
         collection_name="company-docs",
         index_dir="./.vlense",
-        retriever_model="ahmed-masry/ColFlor",
+        retriever_model="vidore/colSmol-500M",
     )
 
     answer = await vlense.ask(
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-Retrieval uses `ahmed-masry/ColFlor` by default, which is much smaller than ColQwen2 while staying document-focused for page-image retrieval.
+Retrieval uses `colpali-engine` directly and defaults to `vidore/colSmol-500M`, which is smaller than full ColQwen2-family checkpoints while staying document-focused.
 
 ## API
 
@@ -114,14 +114,14 @@ Performs OCR on the provided files.
 
 ### Vlense.index()
 
-Indexes one or more PDFs or images into a local ColFlor retrieval collection.
+Indexes one or more PDFs or images into a local page-image retrieval collection.
 
 **Parameters:**
 
 - data_dir : (Union[str, List[str]]): File path, list of file paths, or a directory containing supported PDF/image files.
 - collection_name : (str): Name of the collection to create or replace.
 - index_dir : (str, optional): Root directory used to store indexed collections. Defaults to `".vlense"`.
-- retriever_model : (str, optional): ColFlor model name. Defaults to `"ahmed-masry/ColFlor"`.
+- retriever_model : (str, optional): `colpali-engine` model name. Defaults to `"vidore/colSmol-500M"`.
 - embedding_batch_size : (int, optional): Batch size used while embedding page images. Defaults to `2`.
 - temp_dir : (Optional[str], optional): Temporary directory for rendered PDF pages.
 
@@ -131,7 +131,7 @@ Indexes one or more PDFs or images into a local ColFlor retrieval collection.
 
 ### Vlense.ask()
 
-Answers a question using ColFlor-retrieved page images from a previously indexed collection.
+Answers a question using retrieved page images from a previously indexed collection.
 
 **Parameters:**
 

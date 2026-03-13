@@ -7,7 +7,7 @@ from vlense import Vlense
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Index PDFs/images with ColFlor and ask grounded questions.",
+        description="Index PDFs/images with colpali-engine and ask grounded questions.",
     )
     parser.add_argument(
         "inputs",
@@ -26,12 +26,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--index-dir",
         default=".vlense",
-        help="Directory where the ColFlor index is stored.",
+        help="Directory where the retrieval index is stored.",
     )
     parser.add_argument(
         "--retriever-model",
-        default="ahmed-masry/ColFlor",
-        help="ColFlor model name for retrieval.",
+        default="vidore/colSmol-500M",
+        help="colpali-engine model name for retrieval.",
     )
     parser.add_argument(
         "--vision-model",

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vlense"
-version = "0.2.0"
+version = "0.2.1"
 description = "A Python package to extract text from images and PDFs using Vision Language Model (VLM)."
 readme = "README.md"
 authors = [
@@ -14,8 +14,7 @@ license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
     "aiofiles==24.1.0",
-    "colpali-engine @ git+https://github.com/AhmedMasryKU/colflor.git",
-    "einops>=0.8.0,<1",
+    "colpali-engine==0.3.13",
     "litellm==1.51.2",
     "pdf2image==1.17.0",
     "Pillow>=10.4.0,<12",

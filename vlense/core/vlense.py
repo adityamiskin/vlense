@@ -118,15 +118,15 @@ class Vlense:
         data_dir: Union[str, List[str]],
         collection_name: str,
         index_dir: str = ".vlense",
-        retriever_model: str = "ahmed-masry/ColFlor",
+        retriever_model: str = "vidore/colSmol-500M",
         temp_dir: Optional[str] = None,
         embedding_batch_size: int = 2,
     ) -> str:
         """
-        Index PDFs or images with ColFlor for later retrieval.
+        Index PDFs or images with ColPali-engine retrieval for later QA.
         """
         file_paths = resolve_input_files(data_dir)
-        return await self._index_with_colflor(
+        return await self._index_with_colpali(
             file_paths=file_paths,
             collection_name=collection_name,
             index_dir=index_dir,
@@ -144,19 +144,19 @@ class Vlense:
         top_k: int = 3,
     ) -> str:
         """
-        Answer a question using ColFlor retrieval over an indexed collection.
+        Answer a question using colpali-engine retrieval over an indexed collection.
         """
         manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
-        return await self._ask_with_colflor(
+        return await self._ask_with_colpali(
             query=query,
             collection_name=collection_name,
             model=model,
             index_dir=index_dir,
             top_k=top_k,
-            retriever_model=manifest.get("retriever_model", "ahmed-masry/ColFlor"),
+            retriever_model=manifest.get("retriever_model", "vidore/colSmol-500M"),
         )
 
-    async def _index_with_colflor(
+    async def _index_with_colpali(
         self,
         file_paths: List[str],
         collection_name: str,
@@ -165,7 +165,7 @@ class Vlense:
         temp_dir: Optional[str],
         embedding_batch_size: int,
     ) -> str:
-        from ..models.colflor import ColFlorRetriever
+        from ..models.colpali import ColPaliRetriever
 
         collection_path = get_collection_path(index_dir, collection_name)
         if collection_path.exists():
@@ -194,7 +194,7 @@ class Vlense:
             if temp_dir:
                 shutil.rmtree(temp_dir)
 
-        retriever = ColFlorRetriever(model_name=retriever_model)
+        retriever = ColPaliRetriever(model_name=retriever_model)
         page_embeddings = retriever.encode_images(
             page_image_paths,
             batch_size=embedding_batch_size,
@@ -211,7 +211,7 @@ class Vlense:
             pages=parse_indexed_pages({"pages": page_entries}),
         )
 
-    async def _ask_with_colflor(
+    async def _ask_with_colpali(
         self,
         query: str,
         collection_name: str,
@@ -220,7 +220,7 @@ class Vlense:
         top_k: int,
         retriever_model: str,
     ) -> str:
-        from ..models.colflor import ColFlorRetriever
+        from ..models.colpali import ColPaliRetriever
         from ..models.litellmmodel import LiteLLMModel
 
         manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
@@ -228,7 +228,7 @@ class Vlense:
         if not pages:
             raise ValueError(f"Collection '{collection_name}' does not contain any indexed pages.")
 
-        retriever = ColFlorRetriever(model_name=retriever_model)
+        retriever = ColPaliRetriever(model_name=retriever_model)
         page_embeddings = retriever.load_embeddings(manifest["embeddings_path"])
         query_embeddings = retriever.encode_queries([query])
         scores = retriever.score(

@@ -1,4 +1,4 @@
-__all__ = ["LiteLLMModel", "ColFlorRetriever"]
+__all__ = ["LiteLLMModel", "ColPaliRetriever"]
 
 
 def __getattr__(name):
@@ -6,8 +6,8 @@ def __getattr__(name):
         from .litellmmodel import LiteLLMModel
 
         return LiteLLMModel
-    if name == "ColFlorRetriever":
-        from .colflor import ColFlorRetriever
+    if name == "ColPaliRetriever":
+        from .colpali import ColPaliRetriever
 
-        return ColFlorRetriever
+        return ColPaliRetriever
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

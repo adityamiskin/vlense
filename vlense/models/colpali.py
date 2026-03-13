@@ -1,48 +1,39 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 
-class ColFlorRetriever:
+class ColPaliRetriever:
     """
-    Direct ColFlor wrapper for page-image retrieval.
+    Direct colpali-engine wrapper for page-image retrieval.
+
+    The same ColQwen2 model/processor classes are used for ColSmol checkpoints.
     """
 
     def __init__(
         self,
-        model_name: str = "ahmed-masry/ColFlor",
+        model_name: str = "vidore/colSmol-500M",
         device_preference: str = "auto",
     ):
         try:
             import torch
             from PIL import Image
-            from colpali_engine.models import ColFlor, ColFlorProcessor
+            from colpali_engine.models import ColQwen2, ColQwen2Processor
             from colpali_engine.utils.torch_utils import get_torch_device
         except ImportError as exc:
             raise ImportError(
-                "ColFlor dependencies are missing. Install project dependencies with `uv sync`."
+                "colpali-engine dependencies are missing. Install project dependencies with `uv sync`."
             ) from exc
 
         self._torch = torch
         self._image_cls = Image
         self.device = get_torch_device(device_preference)
-
-        # Upstream ColFlor currently misses newer Transformers capability flags.
-        # Force eager attention and disable optional attention backends.
-        if not hasattr(ColFlor, "_supports_sdpa"):
-            ColFlor._supports_sdpa = False
-        if not hasattr(ColFlor, "_supports_flex_attn"):
-            ColFlor._supports_flex_attn = False
-        if not hasattr(ColFlor, "_supports_flash_attn_2"):
-            ColFlor._supports_flash_attn_2 = False
-
-        self.model = ColFlor.from_pretrained(
+        self.model = ColQwen2.from_pretrained(
             model_name,
+            torch_dtype=torch.bfloat16,
             device_map=self.device,
-            attn_implementation="eager",
         ).eval()
-        self.processor = ColFlorProcessor.from_pretrained(model_name)
+        self.processor = ColQwen2Processor.from_pretrained(model_name)
 
     def encode_images(
         self,
@@ -50,7 +41,7 @@ class ColFlorRetriever:
         batch_size: int = 2,
     ) -> List:
         """
-        Encode page images into ColFlor multi-vector embeddings.
+        Encode page images into multi-vector embeddings.
         """
         embeddings = []
         for batch_paths in self._batched(image_paths, batch_size):
@@ -76,7 +67,7 @@ class ColFlorRetriever:
         batch_size: int = 4,
     ) -> List:
         """
-        Encode text queries into ColFlor multi-vector embeddings.
+        Encode text queries into multi-vector embeddings.
         """
         embeddings = []
         for batch_queries in self._batched(queries, batch_size):
@@ -89,7 +80,7 @@ class ColFlorRetriever:
 
     def score(self, query_embeddings: List, document_embeddings: List):
         """
-        Score queries against page embeddings using ColFlor late interaction.
+        Score queries against page embeddings using late interaction.
         """
         return self.processor.score(query_embeddings, document_embeddings)
 

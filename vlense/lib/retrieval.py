@@ -142,7 +142,7 @@ def save_manifest(
 
     payload = {
         "collection_name": collection_name,
-        "retriever": "colflor",
+        "retriever": "colpali",
         "retriever_model": retriever_model,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "pages": [asdict(page) for page in pages],
@@ -178,7 +178,7 @@ def rank_pages(
     top_k: int,
 ) -> List[RetrievalResult]:
     """
-    Rank pages with ColFlor scores and return top results.
+    Rank pages with ColPali scores and return top results.
     """
     if hasattr(scores, "tolist"):
         score_values = scores.tolist()
@@ -194,4 +194,3 @@ def rank_pages(
     ]
     ranked.sort(key=lambda result: result.score, reverse=True)
     return ranked[:top_k]
-

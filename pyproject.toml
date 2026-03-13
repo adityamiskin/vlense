@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vlense"
-version = "0.2.3"
-description = "A Python package to extract text from images and PDFs using Vision Language Model (VLM)."
+version = "0.2.4"
+description = "Vision-language OCR and multimodal document QA for images and PDFs."
 readme = "README.md"
 authors = [
     {name = "Aditya Miskin", email = "adityamiskin98@gmail.com"}
@@ -24,6 +24,8 @@ dependencies = [
 keywords = [
     "vision-language-model",
     "ocr",
+    "document-qa",
+    "rag",
     "text-extraction",
     "pdf-processing",
     "image-processing"

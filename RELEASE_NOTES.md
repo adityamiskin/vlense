@@ -1,5 +1,10 @@
 # Release Notes
 
+## 0.2.4
+
+- Rewrote the README and package metadata with a clearer professional description of the OCR and multimodal document QA workflow.
+- Updated the published package summary to better reflect page-level retrieval and grounded question answering.
+
 ## 0.2.3
 
 - Switched the PyPI publish workflow to use a repository `PYPI_API_TOKEN` secret instead of PyPI trusted publishing.

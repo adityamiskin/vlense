@@ -1,67 +1,83 @@
 # Vlense
 
-A Python package to extract text from images and PDFs using Vision Language Models (VLM).
+Vision-language OCR and multimodal document QA for images and PDFs.
 
-## Features
+Vlense helps you do two things well:
 
-- Extract text from images and PDFs
-- Supports JSON, HTML, and Markdown formats
-- Easy integration with Vision Language Models
-- Asynchronous processing with batch support
-- Custom JSON schema for structured output
-- Build page-image embedding collections for multimodal RAG
-- Ask grounded questions over indexed PDFs and images
+- extract structured or free-form content from images and PDFs with vision models
+- build a page-level retrieval index over documents and ask grounded questions with citations
+
+It is designed for workflows where plain OCR is not enough and the model needs to reason over full document pages, scans, tables, forms, and mixed visual layouts.
+
+## What It Does
+
+- OCR for images and PDFs with Markdown, HTML, or JSON output
+- Pydantic schema support for structured extraction
+- Page-image indexing for PDFs and image collections
+- Multimodal retrieval with `colpali-engine`
+- Grounded question answering over retrieved document pages
+- Async Python API with a small surface area
 
 ## Installation
+
+Install the package:
+
+```bash
+uv add vlense
+```
+
+Or install from source in this repository:
 
 ```bash
 uv sync
 ```
 
-## Usage
+PDF rendering uses `pdf2image`, so Poppler must be available on your system.
+
+## Quick Start
+
+### OCR
 
 ```python
-import os
 import asyncio
-from vlense import Vlense
-from pydantic import BaseModel
+import os
 
-path = ["./images/image1.jpg", "test.pdf"]
-output_dir = "./output"
-model = "openai/gpt-5-mini"
-temp_dir = "./temp_images"
-os.environ["GEMINI_API_KEY"] = "YOUR_API_KEY"
+from vlense import Vlense
 
 
 async def main():
+    os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
+
     vlense = Vlense()
-    responses = await vlense.ocr(
-        file_path=path,
-        model=model,
-        output_dir=output_dir,
-        temp_dir=temp_dir,
-        batch_size=3,
-        clean_temp_files=False,
+    result = await vlense.ocr(
+        file_path=["./invoice.png", "./report.pdf"],
+        model="openai/gpt-5-mini",
+        format="markdown",
     )
+
+    print(result["invoice.png"].content)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## Multimodal RAG
-
-`Vlense.index()` builds a `colpali-engine` retrieval index for PDFs and images. `Vlense.ask()` searches that index for the most relevant document pages and sends the retrieved page images to the vision model to answer with citations.
+### Document QA
 
 ```python
 import asyncio
+import os
+
 from vlense import Vlense
 
 
 async def main():
+    os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
+
     vlense = Vlense()
 
     await vlense.index(
-        data_dir=["./handbook.pdf", "./diagram.png"],
+        data_dir="./handbook.pdf",
         collection_name="company-docs",
         index_dir="./.vlense",
         retriever_model="vidore/colSmol-500M",
@@ -82,96 +98,96 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-Retrieval uses `colpali-engine` directly and defaults to `vidore/colSmol-500M`, which is smaller than full ColQwen2-family checkpoints while staying document-focused.
+`Vlense.ask()` returns a grounded answer based on the retrieved page images, with cited page references.
 
-## Publishing
+## Retrieval Model
 
-GitHub Actions builds and tests the package on every push and pull request. Publishing to PyPI happens on tags matching `v*` through a repository `PYPI_API_TOKEN` secret.
+Vlense uses `colpali-engine` for page-image retrieval and defaults to `vidore/colSmol-500M`.
 
-Plain pushes to `main` only run CI. PyPI publish and GitHub Release creation only run for version tags such as `v0.2.3`.
+This gives you:
 
-One-time GitHub setup:
+- document-aware visual retrieval instead of plain text-only chunking
+- a smaller default retriever than the heavier ColQwen variants
+- a local collection format that stores rendered pages plus embeddings for reuse
 
-- Add a repository secret named `PYPI_API_TOKEN`.
+## Example CLI
+
+The repository includes a runnable example for PDF question answering:
+
+```bash
+uv run python examples/pdf_qa.py ./document.pdf \
+  --collection my-docs \
+  --question "What does the report say about pricing?" \
+  --vision-model openai/gpt-5-mini
+```
+
+## API Overview
+
+### `Vlense.ocr()`
+
+Runs OCR over one or more images or PDFs and returns generated content in Markdown, HTML, or JSON.
+
+Key options:
+
+- `file_path`: single path or list of paths
+- `model`: vision-capable model name
+- `format`: `markdown`, `html`, or `json`
+- `json_schema`: optional Pydantic schema for structured extraction
+- `output_dir`: optional directory for persisted outputs
+
+### `Vlense.index()`
+
+Builds a local multimodal retrieval collection from PDFs or images.
+
+Key options:
+
+- `data_dir`: file path, list of paths, or directory
+- `collection_name`: logical name for the collection
+- `index_dir`: storage root for page renders and embeddings
+- `retriever_model`: `colpali-engine` checkpoint name
+
+### `Vlense.ask()`
+
+Searches an indexed collection, retrieves the most relevant pages, and asks a vision model to answer using those pages as evidence.
+
+Key options:
+
+- `query`: user question
+- `collection_name`: existing indexed collection
+- `model`: answer model such as `openai/gpt-5-mini`
+- `top_k`: number of retrieved pages to ground the answer
+
+## Release Workflow
+
+GitHub Actions runs CI on pushes and pull requests. Tagged releases publish to PyPI and create a GitHub Release.
+
+Repository setup:
+
+- add a repository secret named `PYPI_API_TOKEN`
 
 Release flow:
 
 ```bash
-git tag v0.2.3
-git push origin v0.2.3
+git tag v0.2.4
+git push origin v0.2.4
 ```
 
-## API
+## Development
 
-### Vlense.ocr()
+This repository uses `uv`, not `pip`.
 
-Performs OCR on the provided files.
+Useful commands:
 
-**Parameters:**
-
-- file_path : (Union[str, List[str]]): Path or list of paths to PDF/image files.
-
-- model : (str, optional): Model name for generating completions. Defaults to `"gemini-flash-latest"`.
-
-- output_dir : (Optional[str], optional): Directory to save output. Defaults to `None`.
-
-- temp_dir : (Optional[str], optional): Directory for temporary files. Defaults to system temp.
-
-- batch_size : (int, optional): Number of concurrent processes. Defaults to `3`.
-
-- format : (str, optional): Output format (`'markdown'`, `'html'`, `'json'`). Defaults to `'markdown'`.
-
-- json_schema : (Optional[Type[BaseModel]], optional): Pydantic model for JSON output. Required if format is `'json'`.
-
-- clean_temp_files : (Optional[bool], optional): Cleanup temporary files after processing. Defaults to `True`.
-
-**Returns:**
-
-- Dict[str, VlenseResponse] : Generated content.
-
-### Vlense.index()
-
-Indexes one or more PDFs or images into a local page-image retrieval collection.
-
-**Parameters:**
-
-- data_dir : (Union[str, List[str]]): File path, list of file paths, or a directory containing supported PDF/image files.
-- collection_name : (str): Name of the collection to create or replace.
-- index_dir : (str, optional): Root directory used to store indexed collections. Defaults to `".vlense"`.
-- retriever_model : (str, optional): `colpali-engine` model name. Defaults to `"vidore/colSmol-500M"`.
-- embedding_batch_size : (int, optional): Batch size used while embedding page images. Defaults to `2`.
-- temp_dir : (Optional[str], optional): Temporary directory for rendered PDF pages.
-
-**Returns:**
-
-- str : Path to the collection manifest.
-
-### Vlense.ask()
-
-Answers a question using retrieved page images from a previously indexed collection.
-
-**Parameters:**
-
-- query : (str): User question.
-- collection_name : (str): Indexed collection name.
-- model : (str, optional): Vision model used for grounded answering. Defaults to `"gemini-flash-latest"`.
-- index_dir : (str, optional): Root directory where collections are stored. Defaults to `".vlense"`.
-- top_k : (int, optional): Number of retrieved pages to send to the model. Defaults to `3`.
-
-**Returns:**
-
-- str : Grounded answer with cited pages.
+```bash
+uv sync
+uv run python -m unittest vlense.tests.test_vlense
+uv build
+```
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.
+Issues and pull requests are welcome.
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-## Contact
-
-Author: Aditya Miskin  
-Email: [adityamiskin98@gmail.com](mailto:adityamiskin98@gmail.com)  
-Repository: [https://github.com/adityamiskin/vlense](https://github.com/adityamiskin/vlense)
+MIT

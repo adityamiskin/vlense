@@ -88,6 +88,8 @@ Retrieval uses `colpali-engine` directly and defaults to `vidore/colSmol-500M`, 
 
 GitHub Actions builds and tests the package on every push and pull request. Publishing to PyPI happens on tags matching `v*` through PyPI trusted publishing.
 
+Plain pushes to `main` only run CI. PyPI publish and GitHub Release creation only run for version tags such as `v0.2.2`.
+
 One-time PyPI setup:
 
 - In PyPI, add a trusted publisher for this GitHub repository.

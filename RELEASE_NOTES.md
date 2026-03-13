@@ -1,5 +1,10 @@
 # Release Notes
 
+## 0.2.3
+
+- Switched the PyPI publish workflow to use a repository `PYPI_API_TOKEN` secret instead of PyPI trusted publishing.
+- Kept tagged releases creating both the PyPI upload and the GitHub Release entry.
+
 ## 0.2.2
 
 - Fixed `vidore/colSmol-500M` loading by selecting the correct `colpali-engine` backend from checkpoint metadata.

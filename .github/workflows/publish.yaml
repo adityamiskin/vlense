@@ -44,11 +44,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test-and-build
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    environment:
-      name: pypi
-      url: https://pypi.org/p/vlense
 
     steps:
       - name: Download distributions
@@ -59,6 +54,9 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
   github-release:
     if: startsWith(github.ref, 'refs/tags/v')

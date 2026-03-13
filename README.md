@@ -84,6 +84,23 @@ if __name__ == "__main__":
 
 Retrieval uses `colpali-engine` directly and defaults to `vidore/colSmol-500M`, which is smaller than full ColQwen2-family checkpoints while staying document-focused.
 
+## Publishing
+
+GitHub Actions builds and tests the package on every push and pull request. Publishing to PyPI happens on tags matching `v*` through PyPI trusted publishing.
+
+One-time PyPI setup:
+
+- In PyPI, add a trusted publisher for this GitHub repository.
+- Set the workflow name to `publish.yaml`.
+- Set the environment name to `pypi`.
+
+Release flow:
+
+```bash
+git tag v0.2.2
+git push origin v0.2.2
+```
+
 ## API
 
 ### Vlense.ocr()

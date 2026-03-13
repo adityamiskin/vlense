@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from importlib import import_module
 from typing import List
 
 
 class ColPaliRetriever:
     """
     Direct colpali-engine wrapper for page-image retrieval.
-
-    The same ColQwen2 model/processor classes are used for ColSmol checkpoints.
     """
 
     def __init__(
@@ -18,8 +17,8 @@ class ColPaliRetriever:
         try:
             import torch
             from PIL import Image
-            from colpali_engine.models import ColQwen2, ColQwen2Processor
             from colpali_engine.utils.torch_utils import get_torch_device
+            from transformers import AutoConfig
         except ImportError as exc:
             raise ImportError(
                 "colpali-engine dependencies are missing. Install project dependencies with `uv sync`."
@@ -28,12 +27,15 @@ class ColPaliRetriever:
         self._torch = torch
         self._image_cls = Image
         self.device = get_torch_device(device_preference)
-        self.model = ColQwen2.from_pretrained(
+        model_cls, processor_cls = self._resolve_components(
+            config=AutoConfig.from_pretrained(model_name)
+        )
+        self.model = model_cls.from_pretrained(
             model_name,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             device_map=self.device,
         ).eval()
-        self.processor = ColQwen2Processor.from_pretrained(model_name)
+        self.processor = processor_cls.from_pretrained(model_name)
 
     def encode_images(
         self,
@@ -100,3 +102,26 @@ class ColPaliRetriever:
     def _batched(items: List, batch_size: int):
         for index in range(0, len(items), batch_size):
             yield items[index : index + batch_size]
+
+    @staticmethod
+    def _resolve_components(config):
+        models = import_module("colpali_engine.models")
+        architecture = next(iter(getattr(config, "architectures", [])), "")
+        model_type = getattr(config, "model_type", "")
+
+        if architecture == "ColIdefics3" or model_type == "idefics3":
+            return models.ColIdefics3, models.ColIdefics3Processor
+
+        if architecture == "ColQwen2_5" or model_type == "qwen2_5_vl":
+            return models.ColQwen2_5, models.ColQwen2_5_Processor
+
+        if architecture == "ColQwen2" or model_type == "qwen2_vl":
+            return models.ColQwen2, models.ColQwen2Processor
+
+        if architecture == "ColPali" or model_type == "paligemma":
+            return models.ColPali, models.ColPaliProcessor
+
+        raise ValueError(
+            f"Unsupported colpali-engine checkpoint architecture {architecture!r} "
+            f"for model_type {model_type!r}."
+        )

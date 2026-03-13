@@ -1,5 +1,10 @@
 # Release Notes
 
+## 0.2.2
+
+- Fixed `vidore/colSmol-500M` loading by selecting the correct `colpali-engine` backend from checkpoint metadata.
+- Added a `uv`-based GitHub Actions pipeline that tests, builds, and publishes tagged releases to PyPI with trusted publishing.
+
 ## 0.2.1
 
 - Replaced the non-publishable Git dependency with the PyPI `colpali-engine` package.

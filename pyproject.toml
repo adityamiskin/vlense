@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vlense"
-version = "0.2.1"
+version = "0.2.2"
 description = "A Python package to extract text from images and PDFs using Vision Language Model (VLM)."
 readme = "README.md"
 authors = [
     {name = "Aditya Miskin", email = "adityamiskin98@gmail.com"}
 ]
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
     "aiofiles==24.1.0",
@@ -37,7 +37,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 

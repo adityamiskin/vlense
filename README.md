@@ -51,7 +51,7 @@ async def main():
     vlense = Vlense()
     result = await vlense.ocr(
         file_path=["./invoice.png", "./report.pdf"],
-        model="openai/gpt-5-mini",
+        model="gpt-5-mini",
         format="markdown",
     )
 
@@ -87,7 +87,7 @@ async def main():
         query="What are the eligibility requirements?",
         collection_name="company-docs",
         index_dir="./.vlense",
-        model="openai/gpt-5-mini",
+        model="gpt-5-mini",
         top_k=3,
     )
 
@@ -99,6 +99,8 @@ if __name__ == "__main__":
 ```
 
 `Vlense.ask()` returns a grounded answer based on the retrieved page images, with cited page references.
+
+For OpenAI-compatible gateways, set `OPENAI_BASE_URL` or pass `base_url=` directly to `Vlense.ocr()` and `Vlense.ask()`.
 
 ## Retrieval Model
 
@@ -118,7 +120,7 @@ The repository includes a runnable example for PDF question answering:
 uv run python examples/pdf_qa.py ./document.pdf \
   --collection my-docs \
   --question "What does the report say about pricing?" \
-  --vision-model openai/gpt-5-mini
+  --vision-model gpt-5-mini
 ```
 
 ## API Overview
@@ -130,10 +132,12 @@ Runs OCR over one or more images or PDFs and returns generated content in Markdo
 Key options:
 
 - `file_path`: single path or list of paths
-- `model`: vision-capable model name
+- `model`: OpenAI-compatible vision-capable model name
 - `format`: `markdown`, `html`, or `json`
 - `json_schema`: optional Pydantic schema for structured extraction
 - `output_dir`: optional directory for persisted outputs
+- `api_key`: optional API key override
+- `base_url`: optional OpenAI-compatible base URL override
 
 ### `Vlense.index()`
 
@@ -154,8 +158,10 @@ Key options:
 
 - `query`: user question
 - `collection_name`: existing indexed collection
-- `model`: answer model such as `openai/gpt-5-mini`
+- `model`: answer model such as `gpt-5-mini`
 - `top_k`: number of retrieved pages to ground the answer
+- `api_key`: optional API key override
+- `base_url`: optional OpenAI-compatible base URL override
 
 ## Release Workflow
 
@@ -168,8 +174,8 @@ Repository setup:
 Release flow:
 
 ```bash
-git tag v0.2.4
-git push origin v0.2.4
+git tag v0.2.5
+git push origin v0.2.5
 ```
 
 ## Development

@@ -35,7 +35,7 @@ class VlenseArgs:
     """
 
     file_path: Union[str, List[str]]
-    model: str = "gemini-flash-latest"
+    model: str = "gpt-5-mini"
     output_dir: Optional[str] = None
     temp_dir: Optional[str] = None
     batch_size: int = 3

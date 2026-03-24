@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--vision-model",
-        default="openai/gpt-5-mini",
+        default="gpt-5-mini",
         help="Vision model used to answer from retrieved page images.",
     )
     parser.add_argument(

@@ -2,8 +2,8 @@ class Messages:
     """User-facing messages"""
 
     MISSING_ENVIRONMENT_VARIABLES = """
-    Required environment variable (keys) from the model are Missing. Please set the required environment variables for the model provider.
-    Refer: https://docs.litellm.ai/docs/providers
+    Required OpenAI-compatible credentials are missing. Please set OPENAI_API_KEY.
+    You can also optionally set OPENAI_BASE_URL for a compatible gateway.
     """
 
     NON_VISION_MODEL = """
@@ -11,8 +11,7 @@ class Messages:
     """
 
     MODEL_ACCESS_ERROR = """
-    Your provided model can't be accessed. Please make sure you have access to the model and also required environment variables are setup correctly including valid api key(s).
-    Refer: https://docs.litellm.ai/docs/providers
+    Your provided model can't be accessed. Please make sure you have access to the model and that OPENAI_API_KEY or OPENAI_BASE_URL are configured correctly.
     """
 
     CUSTOM_SYSTEM_PROMPT_WARNING = """
@@ -29,8 +28,6 @@ class Messages:
 
     NON_200_RESPONSE = """
     Model API returned status code {status_code}: {data}
-
-    Please check the litellm documentation for more information. https://docs.litellm.ai/docs/exception_mapping.
     """
 
     COMPLETION_ERROR = """

@@ -1,5 +1,11 @@
 # Release Notes
 
+## 0.2.5
+
+- Removed the LiteLLM dependency and all LiteLLM-specific code paths.
+- Replaced the vision model adapter with a direct OpenAI-compatible client using `OPENAI_API_KEY` and optional `OPENAI_BASE_URL`.
+- Updated tests, examples, and documentation to match the new runtime configuration.
+
 ## 0.2.4
 
 - Rewrote the README and package metadata with a clearer professional description of the OCR and multimodal document QA workflow.
@@ -27,5 +33,5 @@
 - Switched retrieval to direct `colpali-engine` integration with smaller document-focused page embeddings.
 - Added persistent local collection storage for rendered page images and retrieval embeddings.
 - Added a runnable example CLI in `examples/pdf_qa.py`.
-- Updated the answer flow to work with OpenAI vision-capable models such as `openai/gpt-5-mini` and `openai/gpt-5.4`.
+- Updated the answer flow to work with OpenAI vision-capable models such as `gpt-5-mini` and `gpt-5.4`.
 - Added repository instructions for `uv`-based workflows.

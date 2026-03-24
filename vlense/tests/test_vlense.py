@@ -52,16 +52,18 @@ class FakeColPaliRetriever:
         return FakeColPaliRetriever.saved_embeddings[input_path]
 
 
-class FakeLiteLLMModel:
+class FakeOpenAIModel:
     last_call = None
 
-    def __init__(self, model, format="markdown", json_schema=None):
+    def __init__(self, model, format="markdown", json_schema=None, api_key=None, base_url=None):
         self.model = model
         self.format = format
         self.json_schema = json_schema
+        self.api_key = api_key
+        self.base_url = base_url
 
     async def answer_question(self, question, image_paths, page_references):
-        FakeLiteLLMModel.last_call = {
+        FakeOpenAIModel.last_call = {
             "question": question,
             "image_paths": image_paths,
             "page_references": page_references,
@@ -159,14 +161,14 @@ class TestVlenseRag(unittest.IsolatedAsyncioTestCase):
 
             fake_colpali_module = ModuleType("vlense.models.colpali")
             fake_colpali_module.ColPaliRetriever = FakeColPaliRetriever
-            fake_litellm_module = ModuleType("vlense.models.litellmmodel")
-            fake_litellm_module.LiteLLMModel = FakeLiteLLMModel
+            fake_openai_module = ModuleType("vlense.models.openai_model")
+            fake_openai_module.OpenAIModel = FakeOpenAIModel
 
             with patch.dict(
                 sys.modules,
                 {
                     "vlense.models.colpali": fake_colpali_module,
-                    "vlense.models.litellmmodel": fake_litellm_module,
+                    "vlense.models.openai_model": fake_openai_module,
                 },
             ):
                 answer = await Vlense().ask(
@@ -182,9 +184,9 @@ class TestVlenseRag(unittest.IsolatedAsyncioTestCase):
                 FakeColPaliRetriever.last_score_inputs["document_embeddings"],
                 ["emb:page-0001.png", "emb:page-0002.png"],
             )
-            self.assertEqual(FakeLiteLLMModel.last_call["image_paths"], [str(image_path)])
+            self.assertEqual(FakeOpenAIModel.last_call["image_paths"], [str(image_path)])
             self.assertEqual(
-                FakeLiteLLMModel.last_call["page_references"],
+                FakeOpenAIModel.last_call["page_references"],
                 ["report.pdf p.2"],
             )
 

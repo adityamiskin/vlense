@@ -1,11 +1,11 @@
-__all__ = ["LiteLLMModel", "ColPaliRetriever"]
+__all__ = ["OpenAIModel", "ColPaliRetriever"]
 
 
 def __getattr__(name):
-    if name == "LiteLLMModel":
-        from .litellmmodel import LiteLLMModel
+    if name == "OpenAIModel":
+        from .openai_model import OpenAIModel
 
-        return LiteLLMModel
+        return OpenAIModel
     if name == "ColPaliRetriever":
         from .colpali import ColPaliRetriever
 

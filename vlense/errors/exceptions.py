@@ -6,7 +6,7 @@ from .base import CustomException
 
 
 class MissingEnvironmentVariables(CustomException):
-    """Exception raised when the model provider environment variables, API key(s) are missing. Refer: https://docs.litellm.ai/docs/providers"""
+    """Exception raised when required model provider credentials are missing."""
 
     def __init__(
         self,

@@ -12,7 +12,7 @@ from .text import extract_html_content, format_markdown, get_final_html
 
 
 from ..core import VlenseResponse, Page
-from ..models import LiteLLMModel
+from ..models import OpenAIModel
 
 
 async def pdf_to_images(pdf_path: str, temp_dir: str = None) -> List[str]:
@@ -65,7 +65,7 @@ async def process_batch_with_completion(
 
 async def process_file(
     path: str,
-    llm_model: LiteLLMModel,
+    llm_model: OpenAIModel,
     format: str,
     output_dir: Optional[str],
     temp_directory: str,

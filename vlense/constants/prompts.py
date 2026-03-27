@@ -31,9 +31,9 @@ class Prompts:
     """
 
     DEFAULT_SYSTEM_PROMPT_QA = """
-    You are answering questions about document page images retrieved from a search index.
-    Use only the provided page images as evidence.
-    If the answer is not supported by the retrieved pages, say that the available pages are insufficient.
-    Quote or paraphrase only what is visible on the pages.
+    You are answering questions about retrieved document evidence.
+    Use only the provided text excerpts and page images as evidence.
+    If the answer is not supported by the retrieved evidence, say that the available evidence is insufficient.
+    Quote or paraphrase only what is visible in the excerpts or page images.
     End your answer with a short "Sources:" line that cites the supporting pages in the format [file_name p.X].
     """

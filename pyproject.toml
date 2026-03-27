@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vlense"
-version = "0.2.5"
+version = "0.2.6"
 description = "Vision-language OCR and multimodal document QA for images and PDFs."
 readme = "README.md"
 authors = [
@@ -16,9 +16,11 @@ dependencies = [
     "aiofiles==24.1.0",
     "colpali-engine==0.3.13",
     "openai>=1.109.1,<2",
+    "PyMuPDF>=1.27.2,<2",
     "pdf2image==1.17.0",
     "Pillow>=10.4.0,<12",
     "pydantic==2.9.2",
+    "rank-bm25>=0.2.2,<1",
     "asyncio==3.4.3",
 ]
 keywords = [

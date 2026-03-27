@@ -14,6 +14,7 @@ It is designed for workflows where plain OCR is not enough and the model needs t
 - OCR for images and PDFs with Markdown, HTML, or JSON output
 - Pydantic schema support for structured extraction
 - Page-image indexing for PDFs and image collections
+- Text-layer BM25 retrieval for PDFs
 - Multimodal retrieval with `colpali-engine`
 - Grounded question answering over retrieved document pages
 - Async Python API with a small surface area
@@ -80,6 +81,7 @@ async def main():
         data_dir="./handbook.pdf",
         collection_name="company-docs",
         index_dir="./.vlense",
+        retrieval="hybrid",
         retriever_model="vidore/colSmol-500M",
     )
 
@@ -105,6 +107,11 @@ For OpenAI-compatible gateways, set `OPENAI_BASE_URL` or pass `base_url=` direct
 ## Retrieval Model
 
 Vlense uses `colpali-engine` for page-image retrieval and defaults to `vidore/colSmol-500M`.
+
+For PDFs with a usable text layer, Vlense also supports:
+
+- `retrieval="bm25"` for lexical text retrieval with page-grounded answer synthesis
+- `retrieval="hybrid"` to combine BM25 text retrieval with ColPali page-image retrieval
 
 This gives you:
 
@@ -148,6 +155,7 @@ Key options:
 - `data_dir`: file path, list of paths, or directory
 - `collection_name`: logical name for the collection
 - `index_dir`: storage root for page renders and embeddings
+- `retrieval`: `colpali`, `bm25`, or `hybrid`
 - `retriever_model`: `colpali-engine` checkpoint name
 
 ### `Vlense.ask()`
@@ -160,6 +168,7 @@ Key options:
 - `collection_name`: existing indexed collection
 - `model`: answer model such as `gpt-5-mini`
 - `top_k`: number of retrieved pages to ground the answer
+- `retrieval`: optional override for `colpali`, `bm25`, or `hybrid`
 - `api_key`: optional API key override
 - `base_url`: optional OpenAI-compatible base URL override
 

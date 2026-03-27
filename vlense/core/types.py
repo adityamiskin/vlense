@@ -64,3 +64,28 @@ class RetrievalResult:
 
     page: IndexedPage
     score: float
+
+
+@dataclass
+class IndexedChunk:
+    """
+    Stored lexical chunk metadata used for BM25 retrieval.
+    """
+
+    document_id: str
+    source_path: str
+    file_name: str
+    page_start: int
+    page_end: int
+    text: str
+    section_hint: str = ""
+
+
+@dataclass
+class ChunkRetrievalResult:
+    """
+    A retrieved lexical chunk and its BM25 score.
+    """
+
+    chunk: IndexedChunk
+    score: float

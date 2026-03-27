@@ -1,5 +1,12 @@
 # Release Notes
 
+## 0.2.6
+
+- Added `bm25` and `hybrid` retrieval backends alongside the existing ColPali page-image retrieval flow.
+- Added text-layer PDF chunking and lexical retrieval with `PyMuPDF` and `rank-bm25`.
+- Updated grounded QA prompts and answer assembly so questions can use retrieved text excerpts together with page images.
+- Extended tests and README examples to cover the new retrieval options.
+
 ## 0.2.5
 
 - Removed the LiteLLM dependency and all LiteLLM-specific code paths.

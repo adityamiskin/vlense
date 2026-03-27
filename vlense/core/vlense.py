@@ -7,14 +7,16 @@ from typing import Dict, List, Optional, Type, Union
 
 from .types import VlenseResponse
 from ..lib.retrieval import (
+    build_page_lookup,
     get_collection_path,
+    get_embeddings_path,
     load_manifest,
-    save_manifest,
-    resolve_input_files,
     parse_indexed_pages,
+    parse_indexed_chunks,
     materialize_document_pages,
     rank_pages,
-    get_embeddings_path,
+    resolve_input_files,
+    save_manifest,
 )
 
 from pydantic import BaseModel  # Import BaseModel for type hinting
@@ -130,22 +132,46 @@ class Vlense:
         data_dir: Union[str, List[str]],
         collection_name: str,
         index_dir: str = ".vlense",
+        retrieval: str = "colpali",
         retriever_model: str = "vidore/colSmol-500M",
         temp_dir: Optional[str] = None,
         embedding_batch_size: int = 2,
     ) -> str:
         """
-        Index PDFs or images with ColPali-engine retrieval for later QA.
+        Index PDFs or images for later QA with ColPali, BM25, or hybrid retrieval.
         """
         file_paths = resolve_input_files(data_dir)
-        return await self._index_with_colpali(
-            file_paths=file_paths,
-            collection_name=collection_name,
-            index_dir=index_dir,
-            retriever_model=retriever_model,
-            temp_dir=temp_dir,
-            embedding_batch_size=embedding_batch_size,
-        )
+        retrieval_mode = retrieval.lower()
+
+        if retrieval_mode == "colpali":
+            return await self._index_with_colpali(
+                file_paths=file_paths,
+                collection_name=collection_name,
+                index_dir=index_dir,
+                retriever_model=retriever_model,
+                temp_dir=temp_dir,
+                embedding_batch_size=embedding_batch_size,
+            )
+
+        if retrieval_mode == "bm25":
+            return await self._index_with_bm25(
+                file_paths=file_paths,
+                collection_name=collection_name,
+                index_dir=index_dir,
+                temp_dir=temp_dir,
+            )
+
+        if retrieval_mode == "hybrid":
+            return await self._index_with_hybrid(
+                file_paths=file_paths,
+                collection_name=collection_name,
+                index_dir=index_dir,
+                retriever_model=retriever_model,
+                temp_dir=temp_dir,
+                embedding_batch_size=embedding_batch_size,
+            )
+
+        raise ValueError("retrieval must be one of 'colpali', 'bm25', or 'hybrid'")
 
     async def ask(
         self,
@@ -154,23 +180,142 @@ class Vlense:
         model: str = "gpt-5-mini",
         index_dir: str = ".vlense",
         top_k: int = 3,
+        retrieval: Optional[str] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> str:
         """
-        Answer a question using colpali-engine retrieval over an indexed collection.
+        Answer a question using the retrieval backend stored in the collection manifest.
         """
         manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
-        return await self._ask_with_colpali(
-            query=query,
-            collection_name=collection_name,
-            model=model,
-            index_dir=index_dir,
-            top_k=top_k,
-            retriever_model=manifest.get("retriever_model", "vidore/colSmol-500M"),
-            api_key=api_key,
-            base_url=base_url,
-        )
+        retrieval_mode = (retrieval or manifest.get("retriever") or "colpali").lower()
+
+        if retrieval_mode == "colpali":
+            return await self._ask_with_colpali(
+                query=query,
+                collection_name=collection_name,
+                model=model,
+                index_dir=index_dir,
+                top_k=top_k,
+                retriever_model=manifest.get("retriever_model", "vidore/colSmol-500M"),
+                api_key=api_key,
+                base_url=base_url,
+            )
+
+        if retrieval_mode == "bm25":
+            return await self._ask_with_bm25(
+                query=query,
+                collection_name=collection_name,
+                model=model,
+                index_dir=index_dir,
+                top_k=top_k,
+                api_key=api_key,
+                base_url=base_url,
+            )
+
+        if retrieval_mode == "hybrid":
+            return await self._ask_with_hybrid(
+                query=query,
+                collection_name=collection_name,
+                model=model,
+                index_dir=index_dir,
+                top_k=top_k,
+                retriever_model=manifest.get("retriever_model", "vidore/colSmol-500M"),
+                api_key=api_key,
+                base_url=base_url,
+            )
+
+        raise ValueError("retrieval must be one of 'colpali', 'bm25', or 'hybrid'")
+
+    async def _materialize_collection_pages(
+        self,
+        file_paths: List[str],
+        collection_path: Path,
+        temp_dir: Optional[str],
+    ) -> List[dict]:
+        pages_root = collection_path / "pages"
+        pages_root.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as temp_dir_:
+            working_temp_dir = temp_dir or temp_dir_
+            if temp_dir:
+                if os.path.exists(temp_dir):
+                    await asyncio.to_thread(shutil.rmtree, temp_dir)
+                os.makedirs(temp_dir, exist_ok=True)
+
+            page_entries = []
+            for file_path in file_paths:
+                entries = await materialize_document_pages(
+                    source_path=file_path,
+                    pages_root=pages_root,
+                    temp_directory=working_temp_dir,
+                )
+                page_entries.extend(entries)
+
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+
+        return page_entries
+
+    @staticmethod
+    def _format_chunk_context(results, max_chars: int = 12000) -> str:
+        blocks = []
+        used = 0
+
+        for index, result in enumerate(results, start=1):
+            chunk = result.chunk
+            page_label = (
+                f"pages {chunk.page_start}-{chunk.page_end}"
+                if chunk.page_start != chunk.page_end
+                else f"page {chunk.page_start}"
+            )
+            header = f"--- Excerpt {index} ({chunk.file_name} {page_label})"
+            if chunk.section_hint:
+                header += f" | Section: {chunk.section_hint}"
+            header += " ---\n"
+            body = chunk.text.strip()
+            block = header + body
+            if used + len(block) > max_chars:
+                remaining = max_chars - used - len(header) - 50
+                if remaining < 200:
+                    break
+                body = body[:remaining] + "\n[…truncated…]"
+                block = header + body
+            blocks.append(block)
+            used += len(block)
+            if used >= max_chars:
+                break
+
+        return "\n\n".join(blocks)
+
+    @staticmethod
+    def _page_payload_from_results(results, page_lookup, max_pages: Optional[int] = None):
+        image_paths = []
+        page_references = []
+        seen = set()
+
+        for result in results:
+            if hasattr(result, "page"):
+                pages_to_add = [(result.page.source_path, result.page.page_number)]
+            else:
+                pages_to_add = [
+                    (result.chunk.source_path, page_number)
+                    for page_number in range(result.chunk.page_start, result.chunk.page_end + 1)
+                ]
+
+            for key in pages_to_add:
+                if key in seen:
+                    continue
+                page = page_lookup.get(key)
+                if page is None:
+                    continue
+                seen.add(key)
+                image_paths.append(page.image_path)
+                page_references.append(f"{page.file_name} p.{page.page_number}")
+                if max_pages is not None and len(image_paths) >= max_pages:
+                    return image_paths, page_references
+
+        return image_paths, page_references
 
     async def _index_with_colpali(
         self,
@@ -186,29 +331,12 @@ class Vlense:
         collection_path = get_collection_path(index_dir, collection_name)
         if collection_path.exists():
             shutil.rmtree(collection_path)
-        pages_root = collection_path / "pages"
-        pages_root.mkdir(parents=True, exist_ok=True)
-
-        with tempfile.TemporaryDirectory() as temp_dir_:
-            working_temp_dir = temp_dir or temp_dir_
-            if temp_dir:
-                if os.path.exists(temp_dir):
-                    await asyncio.to_thread(shutil.rmtree, temp_dir)
-                os.makedirs(temp_dir, exist_ok=True)
-
-            page_entries = []
-            page_image_paths = []
-            for file_path in file_paths:
-                entries = await materialize_document_pages(
-                    source_path=file_path,
-                    pages_root=pages_root,
-                    temp_directory=working_temp_dir,
-                )
-                page_entries.extend(entries)
-                page_image_paths.extend(entry["image_path"] for entry in entries)
-
-            if temp_dir:
-                shutil.rmtree(temp_dir)
+        page_entries = await self._materialize_collection_pages(
+            file_paths=file_paths,
+            collection_path=collection_path,
+            temp_dir=temp_dir,
+        )
+        page_image_paths = [entry["image_path"] for entry in page_entries]
 
         retriever = ColPaliRetriever(model_name=retriever_model)
         page_embeddings = retriever.encode_images(
@@ -223,8 +351,121 @@ class Vlense:
         return save_manifest(
             index_dir=index_dir,
             collection_name=collection_name,
+            retriever="colpali",
             retriever_model=retriever_model,
             pages=parse_indexed_pages({"pages": page_entries}),
+            embeddings_path=str(get_embeddings_path(index_dir, collection_name)),
+        )
+
+    async def _index_with_bm25(
+        self,
+        file_paths: List[str],
+        collection_name: str,
+        index_dir: str,
+        temp_dir: Optional[str],
+    ) -> str:
+        from ..lib.bm25 import build_chunks_from_pdf
+
+        collection_path = get_collection_path(index_dir, collection_name)
+        if collection_path.exists():
+            shutil.rmtree(collection_path)
+
+        page_entries = await self._materialize_collection_pages(
+            file_paths=file_paths,
+            collection_path=collection_path,
+            temp_dir=temp_dir,
+        )
+
+        chunks = []
+        pdf_paths = [file_path for file_path in file_paths if Path(file_path).suffix.lower() == ".pdf"]
+        if not pdf_paths:
+            raise ValueError("BM25 indexing requires at least one PDF input with a text layer.")
+
+        for pdf_path in pdf_paths:
+            chunks.extend(build_chunks_from_pdf(pdf_path))
+
+        return save_manifest(
+            index_dir=index_dir,
+            collection_name=collection_name,
+            retriever="bm25",
+            pages=parse_indexed_pages({"pages": page_entries}),
+            chunks=chunks,
+        )
+
+    async def _index_with_hybrid(
+        self,
+        file_paths: List[str],
+        collection_name: str,
+        index_dir: str,
+        retriever_model: str,
+        temp_dir: Optional[str],
+        embedding_batch_size: int,
+    ) -> str:
+        from ..lib.bm25 import build_chunks_from_pdf
+        from ..models.colpali import ColPaliRetriever
+
+        collection_path = get_collection_path(index_dir, collection_name)
+        if collection_path.exists():
+            shutil.rmtree(collection_path)
+
+        page_entries = await self._materialize_collection_pages(
+            file_paths=file_paths,
+            collection_path=collection_path,
+            temp_dir=temp_dir,
+        )
+        page_image_paths = [entry["image_path"] for entry in page_entries]
+
+        retriever = ColPaliRetriever(model_name=retriever_model)
+        page_embeddings = retriever.encode_images(
+            page_image_paths,
+            batch_size=embedding_batch_size,
+        )
+        embeddings_path = str(get_embeddings_path(index_dir, collection_name))
+        retriever.save_embeddings(page_embeddings, embeddings_path)
+
+        chunks = []
+        pdf_paths = [file_path for file_path in file_paths if Path(file_path).suffix.lower() == ".pdf"]
+        for pdf_path in pdf_paths:
+            chunks.extend(build_chunks_from_pdf(pdf_path))
+
+        return save_manifest(
+            index_dir=index_dir,
+            collection_name=collection_name,
+            retriever="hybrid",
+            retriever_model=retriever_model,
+            pages=parse_indexed_pages({"pages": page_entries}),
+            chunks=chunks,
+            embeddings_path=embeddings_path,
+        )
+
+    async def _retrieve_colpali_results(
+        self,
+        manifest: dict,
+        query: str,
+        top_k: int,
+        retriever_model: str,
+    ):
+        from ..models.colpali import ColPaliRetriever
+
+        pages = parse_indexed_pages(manifest)
+        if not pages:
+            return []
+
+        embeddings_path = manifest.get("embeddings_path")
+        if not embeddings_path:
+            raise ValueError("This collection does not contain ColPali embeddings.")
+
+        retriever = ColPaliRetriever(model_name=retriever_model)
+        page_embeddings = retriever.load_embeddings(embeddings_path)
+        query_embeddings = retriever.encode_queries([query])
+        scores = retriever.score(
+            query_embeddings=query_embeddings,
+            document_embeddings=page_embeddings,
+        )
+        return rank_pages(
+            pages=pages,
+            scores=scores,
+            top_k=max(1, min(top_k, len(pages))),
         )
 
     async def _ask_with_colpali(
@@ -238,34 +479,20 @@ class Vlense:
         api_key: Optional[str],
         base_url: Optional[str],
     ) -> str:
-        from ..models.colpali import ColPaliRetriever
         from ..models.openai_model import OpenAIModel
 
         manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
-        pages = parse_indexed_pages(manifest)
-        if not pages:
-            raise ValueError(f"Collection '{collection_name}' does not contain any indexed pages.")
-
-        retriever = ColPaliRetriever(model_name=retriever_model)
-        page_embeddings = retriever.load_embeddings(manifest["embeddings_path"])
-        query_embeddings = retriever.encode_queries([query])
-        scores = retriever.score(
-            query_embeddings=query_embeddings,
-            document_embeddings=page_embeddings,
-        )
-        results = rank_pages(
-            pages=pages,
-            scores=scores,
-            top_k=max(1, min(top_k, len(pages))),
+        results = await self._retrieve_colpali_results(
+            manifest=manifest,
+            query=query,
+            top_k=top_k,
+            retriever_model=retriever_model,
         )
         if not results:
             raise ValueError(f"Collection '{collection_name}' returned no matches for the query.")
 
-        image_paths = []
-        page_references = []
-        for result in results:
-            image_paths.append(result.page.image_path)
-            page_references.append(f"{result.page.file_name} p.{result.page.page_number}")
+        page_lookup = build_page_lookup(parse_indexed_pages(manifest))
+        image_paths, page_references = self._page_payload_from_results(results, page_lookup)
 
         llm_model = OpenAIModel(
             model=model,
@@ -277,5 +504,115 @@ class Vlense:
             question=query,
             image_paths=image_paths,
             page_references=page_references,
+        )
+        return answer.content
+
+    async def _ask_with_bm25(
+        self,
+        query: str,
+        collection_name: str,
+        model: str,
+        index_dir: str,
+        top_k: int,
+        api_key: Optional[str],
+        base_url: Optional[str],
+    ) -> str:
+        from ..lib.bm25 import retrieve_chunks
+        from ..models.openai_model import OpenAIModel
+
+        manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
+        chunks = parse_indexed_chunks(manifest)
+        if not chunks:
+            raise ValueError(f"Collection '{collection_name}' does not contain any BM25 chunks.")
+
+        results = retrieve_chunks(chunks, query, top_k=max(1, top_k))
+        if not results:
+            raise ValueError(f"Collection '{collection_name}' returned no matches for the query.")
+
+        page_lookup = build_page_lookup(parse_indexed_pages(manifest))
+        image_paths, page_references = self._page_payload_from_results(results, page_lookup, max_pages=max(1, top_k * 2))
+        text_context = self._format_chunk_context(results)
+
+        llm_model = OpenAIModel(
+            model=model,
+            format="markdown",
+            api_key=api_key,
+            base_url=base_url,
+        )
+        answer = await llm_model.answer_question(
+            question=query,
+            image_paths=image_paths,
+            page_references=page_references,
+            text_context=text_context,
+        )
+        return answer.content
+
+    async def _ask_with_hybrid(
+        self,
+        query: str,
+        collection_name: str,
+        model: str,
+        index_dir: str,
+        top_k: int,
+        retriever_model: str,
+        api_key: Optional[str],
+        base_url: Optional[str],
+    ) -> str:
+        from ..lib.bm25 import retrieve_chunks
+        from ..models.openai_model import OpenAIModel
+
+        manifest = load_manifest(index_dir=index_dir, collection_name=collection_name)
+        page_lookup = build_page_lookup(parse_indexed_pages(manifest))
+
+        chunk_results = []
+        chunks = parse_indexed_chunks(manifest)
+        if chunks:
+            chunk_results = retrieve_chunks(chunks, query, top_k=max(1, top_k))
+
+        page_results = await self._retrieve_colpali_results(
+            manifest=manifest,
+            query=query,
+            top_k=top_k,
+            retriever_model=retriever_model,
+        )
+
+        if not chunk_results and not page_results:
+            raise ValueError(f"Collection '{collection_name}' returned no matches for the query.")
+
+        image_paths, page_references = self._page_payload_from_results(
+            page_results,
+            page_lookup,
+            max_pages=max(1, top_k * 2),
+        )
+
+        if chunk_results:
+            extra_image_paths, extra_page_references = self._page_payload_from_results(
+                chunk_results,
+                page_lookup,
+                max_pages=max(1, top_k * 2),
+            )
+            seen_paths = set(image_paths)
+            for image_path, page_reference in zip(extra_image_paths, extra_page_references):
+                if image_path in seen_paths:
+                    continue
+                image_paths.append(image_path)
+                page_references.append(page_reference)
+                seen_paths.add(image_path)
+                if len(image_paths) >= max(1, top_k * 2):
+                    break
+
+        text_context = self._format_chunk_context(chunk_results) if chunk_results else None
+
+        llm_model = OpenAIModel(
+            model=model,
+            format="markdown",
+            api_key=api_key,
+            base_url=base_url,
+        )
+        answer = await llm_model.answer_question(
+            question=query,
+            image_paths=image_paths,
+            page_references=page_references,
+            text_context=text_context,
         )
         return answer.content

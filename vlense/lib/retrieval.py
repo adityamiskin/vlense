@@ -4,9 +4,9 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Dict, List, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Union
 
-from ..core.types import IndexedPage, RetrievalResult
+from ..core.types import IndexedChunk, IndexedPage, RetrievalResult
 
 SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
 SUPPORTED_PDF_EXTENSIONS = {".pdf"}
@@ -130,8 +130,11 @@ async def materialize_document_pages(
 def save_manifest(
     index_dir: str,
     collection_name: str,
-    retriever_model: str,
+    retriever: str,
     pages: List[IndexedPage],
+    retriever_model: Optional[str] = None,
+    chunks: Optional[List[IndexedChunk]] = None,
+    embeddings_path: Optional[str] = None,
 ) -> str:
     """
     Persist the collection manifest to disk.
@@ -142,12 +145,16 @@ def save_manifest(
 
     payload = {
         "collection_name": collection_name,
-        "retriever": "colpali",
-        "retriever_model": retriever_model,
+        "retriever": retriever,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "pages": [asdict(page) for page in pages],
-        "embeddings_path": str(get_embeddings_path(index_dir, collection_name)),
     }
+    if retriever_model:
+        payload["retriever_model"] = retriever_model
+    if embeddings_path:
+        payload["embeddings_path"] = embeddings_path
+    if chunks is not None:
+        payload["chunks"] = [asdict(chunk) for chunk in chunks]
 
     manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return str(manifest_path)
@@ -172,6 +179,13 @@ def parse_indexed_pages(payload: Dict) -> List[IndexedPage]:
     return [IndexedPage(**page) for page in payload.get("pages", [])]
 
 
+def parse_indexed_chunks(payload: Dict) -> List[IndexedChunk]:
+    """
+    Hydrate stored lexical chunk data into dataclasses.
+    """
+    return [IndexedChunk(**chunk) for chunk in payload.get("chunks", [])]
+
+
 def rank_pages(
     pages: List[IndexedPage],
     scores,
@@ -194,3 +208,13 @@ def rank_pages(
     ]
     ranked.sort(key=lambda result: result.score, reverse=True)
     return ranked[:top_k]
+
+
+def build_page_lookup(pages: Sequence[IndexedPage]) -> Dict[tuple[str, int], IndexedPage]:
+    """
+    Map a source file and page number to the corresponding stored page metadata.
+    """
+    return {
+        (page.source_path, page.page_number): page
+        for page in pages
+    }

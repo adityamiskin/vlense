@@ -123,11 +123,13 @@ class OpenAIModel:
         question: str,
         image_paths: List[str],
         page_references: List[str],
+        text_context: Optional[str] = None,
     ) -> AnswerResponse:
         messages = await self.prepare_question_messages(
             question=question,
             image_paths=image_paths,
             page_references=page_references,
+            text_context=text_context,
         )
 
         try:
@@ -149,19 +151,25 @@ class OpenAIModel:
         question: str,
         image_paths: List[str],
         page_references: List[str],
+        text_context: Optional[str] = None,
     ) -> list[dict]:
-        if not image_paths:
-            raise ValueError("At least one image path is required to answer a question.")
+        if not image_paths and not text_context:
+            raise ValueError("At least one image path or a text context is required to answer a question.")
+
+        question_block = (
+            "Question:\n"
+            f"{question}\n\n"
+            "Retrieved pages:\n"
+            + ("\n".join(f"- {reference}" for reference in page_references) if page_references else "- none")
+        )
+
+        if text_context:
+            question_block += f"\n\nRetrieved text excerpts:\n{text_context}"
 
         user_content = [
             {
                 "type": "text",
-                "text": (
-                    "Question:\n"
-                    f"{question}\n\n"
-                    "Retrieved pages:\n"
-                    + "\n".join(f"- {reference}" for reference in page_references)
-                ),
+                "text": question_block,
             }
         ]
 

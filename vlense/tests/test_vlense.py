@@ -9,6 +9,11 @@ from unittest.mock import patch
 
 from vlense import Vlense
 
+try:
+    import fitz  # type: ignore
+except ImportError:  # pragma: no cover
+    fitz = None
+
 
 class FakeColPaliRetriever:
     last_init = None
@@ -62,13 +67,28 @@ class FakeOpenAIModel:
         self.api_key = api_key
         self.base_url = base_url
 
-    async def answer_question(self, question, image_paths, page_references):
+    async def answer_question(self, question, image_paths, page_references, text_context=None):
         FakeOpenAIModel.last_call = {
             "question": question,
             "image_paths": image_paths,
             "page_references": page_references,
+            "text_context": text_context,
         }
         return SimpleNamespace(content="Grounded answer")
+
+
+def write_text_pdf(path: Path, pages: list[str]) -> None:
+    if fitz is None:  # pragma: no cover
+        raise unittest.SkipTest("PyMuPDF is not installed")
+
+    doc = fitz.open()
+    try:
+        for page_text in pages:
+            page = doc.new_page()
+            page.insert_text((72, 72), page_text)
+        doc.save(path)
+    finally:
+        doc.close()
 
 
 class TestVlenseRag(unittest.IsolatedAsyncioTestCase):
@@ -189,6 +209,111 @@ class TestVlenseRag(unittest.IsolatedAsyncioTestCase):
                 FakeOpenAIModel.last_call["page_references"],
                 ["report.pdf p.2"],
             )
+
+    async def test_index_creates_bm25_manifest_for_pdf(self):
+        async def fake_materialize_document_pages(source_path, pages_root, temp_directory=None):
+            rendered_paths = []
+            for page_number in range(1, 3):
+                page_path = pages_root / "report-doc" / f"page-{page_number:04d}.png"
+                page_path.parent.mkdir(parents=True, exist_ok=True)
+                page_path.write_text(f"img-{page_number}", encoding="utf-8")
+                rendered_paths.append(
+                    {
+                        "document_id": "doc-1",
+                        "source_path": str(Path(source_path).resolve()),
+                        "file_name": Path(source_path).name,
+                        "page_number": page_number,
+                        "image_path": str(page_path),
+                    }
+                )
+            return rendered_paths
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            pdf_path = temp_root / "report.pdf"
+            write_text_pdf(
+                pdf_path,
+                [
+                    "Alpha section discusses apples and pears.",
+                    "Beta section discusses bananas and grapes.",
+                ],
+            )
+
+            with patch("vlense.core.vlense.materialize_document_pages", side_effect=fake_materialize_document_pages):
+                manifest_path = await Vlense().index(
+                    data_dir=str(pdf_path),
+                    collection_name="reports",
+                    index_dir=str(temp_root / "index"),
+                    retrieval="bm25",
+                    temp_dir=str(temp_root / "scratch"),
+                )
+
+            manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+
+            self.assertEqual(manifest["retriever"], "bm25")
+            self.assertEqual(len(manifest["pages"]), 2)
+            self.assertGreaterEqual(len(manifest["chunks"]), 1)
+            self.assertTrue(
+                any("bananas" in chunk["text"].lower() for chunk in manifest["chunks"])
+            )
+
+    async def test_ask_uses_bm25_results_before_answering(self):
+        async def fake_materialize_document_pages(source_path, pages_root, temp_directory=None):
+            rendered_paths = []
+            for page_number in range(1, 3):
+                page_path = pages_root / "report-doc" / f"page-{page_number:04d}.png"
+                page_path.parent.mkdir(parents=True, exist_ok=True)
+                page_path.write_text(f"img-{page_number}", encoding="utf-8")
+                rendered_paths.append(
+                    {
+                        "document_id": "doc-1",
+                        "source_path": str(Path(source_path).resolve()),
+                        "file_name": Path(source_path).name,
+                        "page_number": page_number,
+                        "image_path": str(page_path),
+                    }
+                )
+            return rendered_paths
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            pdf_path = temp_root / "report.pdf"
+            write_text_pdf(
+                pdf_path,
+                [
+                    "Alpha page covers apples and pears.",
+                    "Banana policy is described here in detail.",
+                ],
+            )
+
+            with patch("vlense.core.vlense.materialize_document_pages", side_effect=fake_materialize_document_pages):
+                await Vlense().index(
+                    data_dir=str(pdf_path),
+                    collection_name="reports",
+                    index_dir=str(temp_root / "index"),
+                    retrieval="bm25",
+                    temp_dir=str(temp_root / "scratch"),
+                )
+
+            fake_openai_module = ModuleType("vlense.models.openai_model")
+            fake_openai_module.OpenAIModel = FakeOpenAIModel
+
+            with patch.dict(sys.modules, {"vlense.models.openai_model": fake_openai_module}):
+                answer = await Vlense().ask(
+                    query="What does the document say about banana policy?",
+                    collection_name="reports",
+                    index_dir=str(temp_root / "index"),
+                    retrieval="bm25",
+                    top_k=1,
+                )
+
+            self.assertEqual(answer, "Grounded answer")
+            self.assertEqual(len(FakeOpenAIModel.last_call["image_paths"]), 1)
+            self.assertEqual(
+                FakeOpenAIModel.last_call["page_references"],
+                ["report.pdf p.2"],
+            )
+            self.assertIn("Banana policy", FakeOpenAIModel.last_call["text_context"])
 
 
 if __name__ == "__main__":
